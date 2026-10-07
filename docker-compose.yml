@@ -1,0 +1,34 @@
+# Run TutorHub in Docker on your own computer, using the same settings as `npm run dev` (.env.local).
+#
+#   npm run docker:up      build (first time takes a while) and start it in the background -> http://localhost:3000
+#   npm run docker:logs    follow the app logs
+#   npm run docker:down    stop and remove the container
+#
+# (Same thing without npm: docker compose --env-file .env.local up -d --build   /   docker compose down)
+#
+# It talks to the Supabase in .env.local (your supabase.com project). Stop `npm run dev` first: both use port 3000
+# (or set APP_PORT=3001 and NEXT_PUBLIC_APP_URL=http://localhost:3001 in .env.local).
+# NEXT_PUBLIC_* values are baked in when the image is built, so after changing them run docker:up again.
+#
+# For a real server (HTTPS, your own Supabase, your own video) use deploy/ instead: see docs/vps-setup-guide.md
+
+name: tutorhub-local
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
+    # Every server-side setting (Stripe, Resend, video, demo login, ...) comes straight from .env.local
+    env_file:
+      - .env.local
+    environment:
+      NODE_ENV: production
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    restart: "no"

@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TutorHub - Stripe Production Setup Guide</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+    @page {
+      size: A4;
+      margin: 18mm 16mm 18mm 16mm;
+      @bottom-right {
+        content: counter(page);
+        font-family: 'Inter', sans-serif;
+        font-size: 9pt;
+        color: #71717a;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #18181b;
+      line-height: 1.55;
+      font-size: 10pt;
+      background: #ffffff;
+      padding: 0;
+    }
+
+    .header {
+      border-bottom: 2px solid #6366f1;
+      padding-bottom: 14px;
+      margin-bottom: 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .header-titles h1 {
+      font-size: 20pt;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+    }
+
+    .header-titles p {
+      font-size: 10.5pt;
+      color: #475569;
+      margin-top: 4px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: #e0e7ff;
+      color: #4338ca;
+    }
+
+    .section {
+      margin-bottom: 20px;
+      page-break-inside: avoid;
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .step-number {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #4f46e5;
+      color: #ffffff;
+      font-size: 10pt;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .step-title {
+      font-size: 13pt;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.01em;
+    }
+
+    p, ul, ol {
+      margin-bottom: 8px;
+      color: #334155;
+    }
+
+    ul, ol {
+      padding-left: 20px;
+    }
+
+    li {
+      margin-bottom: 5px;
+    }
+
+    code {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      font-size: 8.5pt;
+      background: #f1f5f9;
+      color: #0f172a;
+      padding: 2px 5px;
+      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+    }
+
+    pre {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      font-size: 8.5pt;
+      line-height: 1.45;
+      margin: 8px 0;
+      overflow-x: auto;
+    }
+
+    .callout {
+      border-left: 4px solid #6366f1;
+      background: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      margin: 10px 0;
+    }
+
+    .callout-warning {
+      border-left-color: #f59e0b;
+      background: #fffbeb;
+    }
+
+    .callout-warning strong {
+      color: #b45309;
+    }
+
+    .callout-success {
+      border-left-color: #10b981;
+      background: #ecfdf5;
+    }
+
+    .callout-success strong {
+      color: #047857;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+      font-size: 9pt;
+    }
+
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 7px 10px;
+      text-align: left;
+    }
+
+    th {
+      background: #f1f5f9;
+      font-weight: 600;
+      color: #1e293b;
+    }
+
+    .table-event {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8pt;
+      color: #4f46e5;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    .footer {
+      margin-top: 30px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 8pt;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-titles">
+      <h1>TutorHub &bull; Stripe Production Setup Guide</h1>
+      <p>Step-by-Step Checklist to Go Live with Stripe Connect & Billing</p>
+    </div>
+    <span class="badge">Production &bull; Live Mode</span>
+  </div>
+
+  <div class="callout callout-warning">
+    <strong>Before You Begin:</strong> Turn <strong>OFF Test Mode</strong> in the Stripe Dashboard using the toggle in the top-right corner. All actions below must be completed in <strong>Live Mode</strong>.
+  </div>
+
+  <!-- SECTION 1 -->
+  <div class="section">
+    <div class="step-header">
+      <div class="step-number">1</div>
+      <div class="step-title">Activate Your Live Stripe Account & Platform Profile</div>
+    </div>
+    <p>To accept real money and onboard tutors on Stripe Connect, Stripe requires verified platform business credentials:</p>
+    <ol>
+      <li>Log in to <a href="https://dashboard.stripe.com">dashboard.stripe.com</a> and toggle <strong>Test Mode OFF</strong>.</li>
+      <li>If prompted, complete <strong>Account Activation</strong>:
+        <ul>
+          <li><strong>Business Details:</strong> Legal business name, business address, and Tax ID (EIN, VAT, GST, PAN, etc.).</li>
+          <li><strong>Bank Account:</strong> Enter the bank account where platform revenue (Pro subscriptions) will be deposited.</li>
+          <li><strong>Representative:</strong> Verify identity details (ID/Passport) of the primary account owner.</li>
+        </ul>
+      </li>
+      <li>Go to <strong>Settings &rarr; Connect &rarr; Platform profile</strong> and configure:
+        <ul>
+          <li><strong>Branding:</strong> Add your platform logo, icon, and brand colors (used in Stripe onboarding & emails).</li>
+          <li><strong>Support details:</strong> Support email address and public website URL (<code>https://yourdomain.com</code>).</li>
+        </ul>
+      </li>
+    </ol>
+  </div>
+
+  <!-- SECTION 2 -->
+  <div class="section">
+    <div class="step-header">
+      <div class="step-number">2</div>
+      <div class="step-title">Enable Accounts v1 Support & Verify Connect Settings</div>
+    </div>
+    <p>TutorHub creates Express accounts programmatically using Stripe's API. Ensure policy compatibility:</p>
+    <ol>
+      <li>Go to <strong>Settings &rarr; Developers &rarr; API policies</strong>:
+        <br>Direct link: <code>https://dashboard.stripe.com/settings/developers/api-policies/feat_accounts_v1_support</code>
+      </li>
+      <li>Click the edit pencil next to <strong>Accounts v1 support</strong> and select <strong>Enable</strong>.</li>
+      <li>Go to <strong>Settings &rarr; Connect</strong>:
+        <ul>
+          <li><strong>Account types:</strong> Ensure <strong>Express</strong> accounts are enabled.</li>
+          <li><strong>Business model:</strong> Direct charges (buyers pay tutors directly).</li>
+        </ul>
+      </li>
+    </ol>
+  </div>
+
+  <!-- SECTION 3 -->
+  <div class="section">
+    <div class="step-header">
+      <div class="step-number">3</div>
+      <div class="step-title">Get Live API Keys</div>
+    </div>
+    <p>Generate your live environment credentials:</p>
+    <ol>
+      <li>In the top search or navigation, go to <strong>Developers &rarr; API keys</strong> (in Live mode).</li>
+      <li>Copy the <strong>Publishable key</strong> (starts with <code>pk_live_...</code>).</li>
+      <li>Under <strong>Standard keys</strong> (or Secret keys), click <strong>Create secret key</strong>:
+        <ul>
+          <li>Name: <code>TutorHub Production Server</code></li>
+          <li>Permissions: Select <strong>Full access</strong> (required for managing Connect accounts & subscriptions).</li>
+        </ul>
+      </li>
+      <li>Copy the secret key immediately (starts with <code>sk_live_...</code>).</li>
+    </ol>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- SECTION 4 -->
+  <div class="section">
+    <div class="step-header">
+      <div class="step-number">4</div>
+      <div class="step-title">Create the Live "TutorHub Pro" Subscription & Customer Portal</div>
+    </div>
+    <p>Set up the live recurring subscription product for tutors:</p>
+    <ol>
+      <li>Go to <strong>Product catalogue &rarr; Add product</strong>:
+        <ul>
+          <li><strong>Name:</strong> <code>TutorHub Pro</code></li>
+          <li><strong>Description:</strong> <code>Unlimited bookings, custom domain, and priority listing</code></li>
+          <li><strong>Pricing model:</strong> Flat fee &bull; <strong>Recurring</strong></li>
+          <li><strong>Price:</strong> Set your production monthly price (e.g., <code>€19.00 EUR</code> or <code>$19.00 USD</code>)</li>
+          <li><strong>Billing period:</strong> Monthly</li>
+        </ul>
+      </li>
+      <li>Click <strong>Save product</strong>.</li>
+      <li>Open the created product, go to the <strong>Pricing</strong> section, and copy the <strong>Price ID</strong> (starts with <code>price_...</code>).</li>
+      <li><strong>Activate the Customer Portal:</strong>
+        <ul>
+          <li>Go to <strong>Settings &rarr; Billing &rarr; Customer portal</strong>.</li>
+          <li>Enable customers to: <em>Cancel subscriptions</em>, <em>Update payment methods</em>, and <em>View invoice history</em>.</li>
+          <li>Click <strong>Save changes / Activate</strong>.</li>
+        </ul>
+      </li>
+    </ol>
+  </div>
+
+  <!-- SECTION 5 -->
+  <div class="section">
+    <div class="step-header">
+      <div class="step-number">5</div>
+      <div class="step-title">Configure Live Webhook Endpoints</div>
+    </div>
+    <p>In production, Stripe sends HTTP POST requests directly to your live production domain:</p>
+    <ol>
+      <li>Go to <strong>Developers &rarr; Webhooks &rarr; Add endpoint</strong>.</li>
+      <li><strong>Endpoint URL:</strong> <code>https://your-domain.com/api/webhooks/stripe</code></li>
+      <li><strong>Listen to:</strong> Choose <strong>Events on connected accounts</strong> (or select <em>Both account and connected accounts</em>).
+        <div class="callout callout-warning" style="margin: 6px 0;">
+          <strong>Critical:</strong> TutorHub processes student &rarr; tutor bookings which occur on the tutor's Connected account. The webhook must receive Connected account events!
+        </div>
+      </li>
+      <li>Click <strong>Select events to listen to</strong> and check the following 6 events:</li>
+    </ol>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 42%;">Event Name</th>
+          <th>What TutorHub Does</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="table-event">checkout.session.completed</td>
+          <td>Confirms lesson bookings & packages, and activates the Pro subscription for tutors.</td>
+        </tr>
+        <tr>
+          <td class="table-event">checkout.session.expired</td>
+          <td>Fails abandoned booking sessions so reserved calendar slots are freed.</td>
+        </tr>
+        <tr>
+          <td class="table-event">charge.refunded</td>
+          <td>Marks lesson payments as refunded in the database.</td>
+        </tr>
+        <tr>
+          <td class="table-event">account.updated</td>
+          <td>Detects when tutor completes Stripe onboarding and marks payouts enabled.</td>
+        </tr>
+        <tr>
+          <td class="table-event">customer.subscription.updated</td>
+          <td>Maintains active/past-due state for tutor Pro subscriptions.</td>
+        </tr>
+        <tr>
+          <td class="table-event">customer.subscription.deleted</td>
+          <td>Downgrades tutor back to the Free plan when their subscription cancels.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <ol start="5">
+      <li>Click <strong>Add endpoint</strong>.</li>
+      <li>Under <strong>Signing secret</strong>, click <strong>Reveal</strong> and copy the secret (starts with <code>whsec_...</code>).</li>
+    </ol>
+  </div>
+
+  <!-- SECTION 6 -->
+  <div class="section">
+    <div class="step-header">
+      <div class="step-number">6</div>
+      <div class="step-title">Production Environment Variables Reference</div>
+    </div>
+    <p>Add these environment variables to your production hosting provider (Vercel, Railway, Render, VPS):</p>
+    <pre>
+# --- App Domain ---
+NEXT_PUBLIC_APP_URL=https://your-domain.com
+
+# --- Live Stripe Configuration ---
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_your_actual_publishable_key
+STRIPE_SECRET_KEY=sk_live_your_actual_secret_key
+STRIPE_WEBHOOK_SECRET=whsec_your_actual_production_webhook_secret
+STRIPE_PRO_PRICE_ID=price_your_actual_live_pro_price_id
+    </pre>
+  </div>
+
+  <div class="section">
+    <div class="step-header">
+      <div class="step-number">7</div>
+      <div class="step-title">Pre-Launch Verification Checklist</div>
+    </div>
+    <ul>
+      <li>[ ] <strong>Tutor Onboarding:</strong> Log in as a real tutor, click <em>Connect Stripe</em>, and verify completion of real Express onboarding.</li>
+      <li>[ ] <strong>Test Booking:</strong> Create a test lesson with a real debit/credit card for $1.00 & verify booking confirmation.</li>
+      <li>[ ] <strong>Refund Test:</strong> In Stripe Dashboard, issue a refund for the $1.00 test charge and verify status updates in TutorHub.</li>
+      <li>[ ] <strong>Webhook Monitoring:</strong> Check <strong>Developers &rarr; Webhooks</strong> to confirm incoming requests return HTTP <code>200 OK</code>.</li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    <span>TutorHub Platform Documentation</span>
+    <span>Generated for Production Deployment</span>
+  </div>
+
+</body>
+</html>

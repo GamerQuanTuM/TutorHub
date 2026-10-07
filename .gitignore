@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+stripe.exe
+
+# local MCP config (contains an API key)
+.mcp.json
+
+# VPS deployment: generated files and secrets (deploy/.env is already covered by .env*)
+deploy/Caddyfile
+deploy/backups/

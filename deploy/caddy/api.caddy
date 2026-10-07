@@ -1,0 +1,6 @@
+
+# Your own Supabase API (profile "supabase")
+{$API_DOMAIN} {
+	import security
+	reverse_proxy kong:8000
+}

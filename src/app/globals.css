@@ -1,26 +1,322 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* `dark:` follows the app theme: an explicit data-theme wins, otherwise the system setting. */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) {
+      @slot;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ------------------------------------------------------------------
+   TutorHub design tokens: "Joyful Pink".
+   Friendly, rounded, joyful and professional (Linear + Airbnb + Duolingo).
+   1. Raw palette (never changes between themes)
+   2. Semantic tokens (change between light / dark)
+   3. Tailwind theme mapping
+   Note: the `brand-*` scale is the pink scale; `saffron-*` tokens are the warm peach accent.
+   ------------------------------------------------------------------ */
+
+:root {
+  /* Pink (brand) scale */
+  --brand-50: #fff0f6;
+  --brand-100: #ffe0ec;
+  --brand-200: #ffc2d9;
+  --brand-300: #ff94bc;
+  --brand-400: #ff5c9a;
+  --brand-500: #f72585; /* vibrant accent */
+  --brand-600: #d91a72; /* primary buttons (white text passes AA) */
+  --brand-700: #b01260;
+  --brand-900: #5c0b33;
+
+  /* Accents */
+  --violet: #7209b7;
+  --saffron: #ffb4a2; /* peach: secondary / warm highlights */
+  --saffron-soft: #fff0eb;
+  --saffron-deep: #9a3412;
+  --terracotta: #c8553d;
+  --ink: #2a0a1f; /* plum */
+
+  /* Semantic status colours */
+  --success: #047857;
+  --success-soft: #ecfdf5;
+  --warning: #b45309;
+  --warning-soft: #fffbeb;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+
+  /* Light theme */
+  --background: #fffafc;
+  --foreground: #2a0a1f;
+  --card: #ffffff;
+  --card-foreground: #2a0a1f;
+  --muted: #fdeef4;
+  --muted-foreground: #6b4a5c; /* 7:1 on background */
+  --border: #f6d3e2;
+  --primary: var(--brand-600);
+  --primary-foreground: #ffffff;
+  --link: var(--brand-700);
+  --ring: var(--brand-400);
+  --shadow-color: 247 37 133;
+  --radius: 20px;
+}
+
+:root[data-theme="dark"] {
+  --background: #2a0a1f;
+  --foreground: #fff0f6;
+  --card: #3a1429;
+  --card-foreground: #fff0f6;
+  --muted: #4a1c36;
+  --muted-foreground: #e6bdd1;
+  --border: #5e2848;
+  --primary: var(--brand-500);
+  --primary-foreground: #2a0a1f; /* dark text on pink-500 = 4.7:1 */
+  --link: var(--brand-300);
+  --ring: var(--brand-400);
+  --saffron-soft: #4a2418;
+  --saffron-deep: #ffb4a2;
+  --success: #4ade80;
+  --success-soft: #14341f;
+  --warning: #fbbf24;
+  --warning-soft: #3d2a08;
+  --danger: #f87171;
+  --danger-soft: #3f1515;
+  --shadow-color: 0 0 0;
+}
+
+/* Follow the system when the user has not picked a theme */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #2a0a1f;
+    --foreground: #fff0f6;
+    --card: #3a1429;
+    --card-foreground: #fff0f6;
+    --muted: #4a1c36;
+    --muted-foreground: #e6bdd1;
+    --border: #5e2848;
+    --primary: var(--brand-500);
+    --primary-foreground: #2a0a1f;
+    --link: var(--brand-300);
+    --ring: var(--brand-400);
+    --saffron-soft: #4a2418;
+    --saffron-deep: #ffb4a2;
+    --success: #4ade80;
+    --success-soft: #14341f;
+    --warning: #fbbf24;
+    --warning-soft: #3d2a08;
+    --danger: #f87171;
+    --danger-soft: #3f1515;
+    --shadow-color: 0 0 0;
+  }
+}
+
+@theme inline {
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-900: var(--brand-900);
+  --color-violet: var(--violet);
+  --color-saffron: var(--saffron);
+  --color-saffron-soft: var(--saffron-soft);
+  --color-saffron-deep: var(--saffron-deep);
+  --color-terracotta: var(--terracotta);
+  --color-ink: var(--ink);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-link: var(--link);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-heading: var(--font-jakarta), var(--font-inter), system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+
+  --shadow-soft: 0 4px 20px -4px rgb(var(--shadow-color) / 0.14);
+  --shadow-lift: 0 12px 32px -8px rgb(var(--shadow-color) / 0.28);
+  --shadow-glow: 0 0 0 1px rgb(var(--shadow-color) / 0.1), 0 6px 24px -2px rgb(247 37 133 / 0.4);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-heading);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    font-weight: 800;
+  }
+  /*
+   * A grid without explicit columns gets ONE shrinkable column. Without this, "grid md:grid-cols-2" has an implicit
+   * auto-sized column below md that grows to its widest child and makes the whole page scroll sideways on phones.
+   * Utilities such as grid-cols-3 / md:grid-cols-2 still win (they are in a later layer).
+   */
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Visible focus ring on everything interactive */
+  :where(a, button, input, textarea, select, [role="tab"], [tabindex]):focus-visible {
+    outline: 3px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+}
+
+/* Pink-to-violet hero gradient: banners and the one hero card per screen */
+.bg-hero {
+  background-image: linear-gradient(135deg, #d91a72 0%, #7209b7 100%);
+  color: #fff;
+}
+:root[data-theme="dark"] .bg-hero {
+  background-image: linear-gradient(135deg, #b01260 0%, #5b1090 100%);
+}
+
+/* Cards and tiles lift 2px on hover (opt in with .lift) */
+.lift {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
+}
+
+/* Monospaced numerals for timestamps and prices */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pink-tinted skeleton shimmer */
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--muted);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 148 188 / 0.35), transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+/* Soft pulse for live indicators and the "lesson starts soon" countdown */
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(247 37 133 / 0.5); }
+  50% { box-shadow: 0 0 0 10px rgb(247 37 133 / 0); }
+}
+.pulse-pink { animation: pulse-ring 1.6s ease-in-out infinite; }
+
+/* Respect reduced motion everywhere (Framer Motion is handled via MotionConfig) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .skeleton::after { display: none; }
+}
+
+/* ------------------------------------------------------------------
+   FullCalendar (tutor calendar) wired to the app tokens, light and dark.
+   ------------------------------------------------------------------ */
+.tutor-cal {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: var(--card);
+  --fc-neutral-bg-color: var(--muted);
+  --fc-neutral-text-color: var(--muted-foreground);
+  --fc-list-event-hover-bg-color: var(--muted);
+  --fc-today-bg-color: color-mix(in srgb, var(--brand-500) 8%, transparent);
+  --fc-now-indicator-color: var(--brand-500);
+  --fc-non-business-color: color-mix(in srgb, var(--muted) 70%, transparent);
+  --fc-bg-event-color: var(--danger);
+  --fc-bg-event-opacity: 0.12;
+  --fc-event-border-color: transparent;
+  --fc-small-font-size: 0.8rem;
+  color: var(--card-foreground);
+  font-family: var(--font-sans);
+}
+.tutor-cal .fc-toolbar { gap: 0.5rem; flex-wrap: wrap; }
+.tutor-cal .fc-toolbar-title { font-family: var(--font-heading); font-weight: 800; font-size: 1.25rem; letter-spacing: -0.02em; }
+.tutor-cal .fc-button {
+  background: var(--card); border: 1px solid var(--border); color: var(--foreground);
+  border-radius: 9999px; font-weight: 600; font-size: 0.85rem; padding: 0.4rem 0.9rem; text-transform: none; box-shadow: none;
+}
+.tutor-cal .fc-button:hover { background: var(--muted); }
+.tutor-cal .fc-button:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; box-shadow: none; }
+.tutor-cal .fc-button-primary:not(:disabled).fc-button-active,
+.tutor-cal .fc-button-primary:not(:disabled):active { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.tutor-cal .fc-button-primary:disabled { opacity: 0.5; }
+.tutor-cal .fc-button-group > .fc-button { border-radius: 0; }
+.tutor-cal .fc-button-group > .fc-button:first-child { border-radius: 9999px 0 0 9999px; }
+.tutor-cal .fc-button-group > .fc-button:last-child { border-radius: 0 9999px 9999px 0; }
+.tutor-cal .fc-button-group > .fc-button:only-child { border-radius: 9999px; }
+.tutor-cal .fc-col-header-cell-cushion { font-weight: 700; padding: 0.6rem 0.25rem; color: var(--foreground); }
+.tutor-cal .fc-timegrid-slot-label-cushion { font-family: var(--font-mono); font-size: 0.72rem; }
+.tutor-cal .fc-day-today .fc-col-header-cell-cushion { color: var(--link); }
+.tutor-cal .fc-theme-standard td, .tutor-cal .fc-theme-standard th, .tutor-cal .fc-theme-standard .fc-scrollgrid { border-color: var(--border); }
+.tutor-cal .fc-list { border-radius: 1rem; overflow: hidden; border-color: var(--border); }
+.tutor-cal .fc-list-day-cushion { background: var(--muted); font-weight: 700; }
+.tutor-cal .fc-list-event td { border-color: var(--border); }
+.tutor-cal .fc-list-event-dot { border-color: var(--brand-500); }
+.tutor-cal .fc-list-event-title a { font-weight: 700; }
+.tutor-cal .fc-event { border-radius: 0.75rem; cursor: pointer; border: 0; box-shadow: var(--shadow-soft); }
+/* FullCalendar forces white text on .fc-event-main; each status sets its own colour on the event, so inherit it */
+.tutor-cal .fc-event .fc-event-main { color: inherit; }
+.tutor-cal .fc-event:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+.tutor-cal :is(.fc-timegrid-event, .fc-daygrid-event).ev-confirmed { background: var(--brand-600); color: #fff; }
+.tutor-cal :is(.fc-timegrid-event, .fc-daygrid-event).ev-confirmed.ev-trial { background: var(--saffron); color: var(--ink); }
+.tutor-cal :is(.fc-timegrid-event, .fc-daygrid-event).ev-done { background: var(--muted); color: var(--foreground); border: 1px solid var(--border); }
+.tutor-cal :is(.fc-timegrid-event, .fc-daygrid-event).ev-pending { background: var(--warning-soft); color: var(--warning); border: 1px solid var(--warning); }
+.tutor-cal :is(.fc-timegrid-event, .fc-daygrid-event).ev-cancelled { background: var(--danger-soft); color: var(--danger); opacity: 0.7; text-decoration: line-through; }
+/* Confirmed lessons keep white text on the deeper pink in dark mode too (the brighter pink with dark text was only 3.8:1) */
+/* List view rows stay neutral; only the dot and a few states carry colour */
+.tutor-cal .fc-list-event.ev-cancelled td { text-decoration: line-through; opacity: 0.6; }
+.tutor-cal .fc-list-event.ev-trial .fc-list-event-dot { border-color: var(--saffron); }
+.tutor-cal .fc-list-event.ev-pending .fc-list-event-dot { border-color: var(--warning); }
+.tutor-cal .fc-list-event.ev-done .fc-list-event-dot { border-color: var(--border); }
+@media (max-width: 767px) {
+  .tutor-cal .fc-toolbar-title { font-size: 1rem; }
+  .tutor-cal .fc-footer-toolbar { margin-top: 0.75rem; }
 }

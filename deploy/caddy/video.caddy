@@ -1,0 +1,5 @@
+
+# Your own Jitsi Meet (profile "jitsi"). Caddy handles HTTPS and the websocket upgrades.
+{$VIDEO_DOMAIN} {
+	reverse_proxy jitsi-web:80
+}

@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.env*
+!.env.example
+deploy/.env
+deploy/Caddyfile
+deploy/backups
+.mcp.json
+stripe.exe
+graphify-out
+tests
+docs
+*.md
+!README.md
+tsconfig.tsbuildinfo
