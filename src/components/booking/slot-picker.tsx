@@ -23,6 +23,8 @@ export interface SlotPickerProps {
   fixedDuration?: number;
   excludeBookingId?: string;
   initialTrial?: boolean;
+  /** The tutor is full: only the free trial can be booked, so it stays selected and cannot be switched off. */
+  paidUnavailable?: boolean;
   /** Viewer's saved zone (logged-in users). Anonymous visitors get the browser zone. */
   knownZone?: string;
   onPick?: (startsAtIso: string) => void;
@@ -43,7 +45,7 @@ export function SlotPicker(p: SlotPickerProps) {
   const [ready, setReady] = useState(false);
   const [view, setView] = useState<"week" | "day">("week");
   const [anchor, setAnchor] = useState(""); // yyyy-MM-dd, in the viewer's zone
-  const [trial, setTrial] = useState(Boolean(p.initialTrial && p.trial.enabled));
+  const [trial, setTrial] = useState(Boolean((p.initialTrial || p.paidUnavailable) && p.trial.enabled));
   const [duration, setDuration] = useState(p.fixedDuration ?? p.durations[p.durations.length - 1] ?? 60);
   const [slots, setSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,7 +156,7 @@ export function SlotPicker(p: SlotPickerProps) {
               <button
                 type="button"
                 aria-pressed={trial}
-                onClick={() => { setTrial(!trial); setSelected(null); }}
+                onClick={() => { if (p.paidUnavailable) return; setTrial(!trial); setSelected(null); }}
                 className={cn("relative rounded-2xl border-2 p-3.5 text-left transition", trial ? "border-brand-500 bg-brand-50 dark:bg-brand-900/40" : "border-border bg-card hover:border-brand-300")}
               >
                 <span className="absolute right-2.5 top-2.5 rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-bold text-success">FREE</span>

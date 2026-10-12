@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { requireSession } from "@/lib/auth/session";
 import { getAdminRepo, getRepo } from "@/lib/data";
 import { confirmProCheckout } from "@/lib/payments/fulfill";
-import { countActiveStudents, getTutorPlan } from "@/lib/data/queries";
+import { getTutorPlan, studentSeats } from "@/lib/data/queries";
 import { PLAN_LIMITS, proPrice } from "@/lib/plans";
 import { formatDate, formatMoney } from "@/lib/time";
 import { openBillingPortalAction, upgradeToProAction } from "@/lib/actions/payments";
@@ -44,7 +44,7 @@ export default async function BillingPage({ searchParams }: PageProps<"/tutor/bi
       console.error("[billing] could not confirm the Pro checkout", e);
     }
   }
-  const [{ plan, subscription }, active] = await Promise.all([getTutorPlan(repo, session.id), countActiveStudents(repo, session.id)]);
+  const [{ plan, subscription }, active] = await Promise.all([getTutorPlan(repo, session.id), studentSeats(repo, session.id).then((x) => x.used)]);
   const pro = plan === "pro";
   const limit = PLAN_LIMITS[plan].maxStudents;
   const price = proPrice();
@@ -67,7 +67,7 @@ export default async function BillingPage({ searchParams }: PageProps<"/tutor/bi
           {pro && subscription?.currentPeriodEnd ? <p className="text-sm text-muted-foreground">Renews {formatDate(subscription.currentPeriodEnd, session.profile.timezone)}</p> : !pro && <p className="text-sm text-muted-foreground">Free plan, no renewal.</p>}
           {subscription?.status === "past_due" && <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm font-medium text-danger">⚠ Your last payment failed. Update your card to keep Pro.</p>}
           <div className="rounded-2xl bg-muted/60 p-4">
-            <p className="mb-2 flex justify-between text-sm font-semibold"><span>Students active</span><span className="mono text-brand-600 dark:text-brand-300">{active}{limit === Infinity ? "" : ` / ${limit}`}</span></p>
+            <p className="mb-2 flex justify-between text-sm font-semibold"><span>Students (pending invites included)</span><span className="mono text-brand-600 dark:text-brand-300">{active}{limit === Infinity ? "" : ` / ${limit}`}</span></p>
             <ProgressBar value={limit === Infinity ? Math.min(100, active * 5) : (active / limit) * 100} label="Students used" />
             {!pro && active <= limit && <p className="mt-2 text-xs text-muted-foreground">{limit - active} {limit - active === 1 ? "slot" : "slots"} remaining on the Free plan</p>}
             {!pro && active > limit && <p className="mt-2 text-sm text-warning">You have more than {limit} students. Existing ones stay, but you can&apos;t add new students until you upgrade.</p>}

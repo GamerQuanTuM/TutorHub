@@ -15,6 +15,8 @@ import { buyPackageAction } from "@/lib/actions/booking";
 import { tutorCanTakeCards } from "@/lib/payments/checkout";
 import { formatDate, formatMoney } from "@/lib/time";
 import { embedUrl } from "@/lib/video";
+import { getTutorPlan, studentHoldsSeat, studentSeats } from "@/lib/data/queries";
+import { canAddStudent } from "@/lib/plans";
 import { StarRating } from "@/components/shared/star-rating";
 import { loadReviews, reviewerLabel, summarizeReviews } from "@/lib/reviews";
 import type { Metadata } from "next";
@@ -47,6 +49,10 @@ export default async function TutorPublicPage({ params, searchParams }: PageProp
   for (const r of reviews.slice(0, 6)) reviewerNames.set(r.studentId, reviewerLabel((await repo.one("profiles", { id: r.studentId }))?.fullName ?? ""));
   const video = embedUrl(tutor.introVideoUrl);
   const perLesson = formatMoney(tutor.hourlyPriceCents, tutor.currency);
+  // A full Free-plan tutor still offers the free trial, but nothing paid, unless this student already has a seat
+  const { plan } = await getTutorPlan(repo, tutor.userId);
+  const tutorFull = !canAddStudent(plan, (await studentSeats(repo, tutor.userId)).used);
+  const paidUnavailable = tutorFull && !(session?.profile.role === "student" && (await studentHoldsSeat(repo, tutor.userId, session.id)));
   const error = typeof sp.error === "string" ? errors[sp.error] : undefined;
 
   return (
@@ -178,11 +184,18 @@ export default async function TutorPublicPage({ params, searchParams }: PageProp
             <Card className="space-y-4">
               <h2 id="book-title" className="flex items-center gap-2 text-2xl font-extrabold"><Sparkles className="size-6 text-brand-600 dark:text-brand-300" aria-hidden /> Book a lesson</h2>
               <p className="text-sm text-muted-foreground">No account needed to browse. You&apos;ll sign up or log in when you pay.</p>
-              <SlotPicker
-                slug={slug} durations={tutor.durations} trial={{ enabled: tutor.trialEnabled, durationMin: tutor.trialDurationMin }}
-                hourlyPriceCents={tutor.hourlyPriceCents} currency={tutor.currency} initialTrial={sp.trial === "1"}
-                knownZone={session?.profile.timezone && session.profile.timezone !== "UTC" ? session.profile.timezone : undefined}
-              />
+              {paidUnavailable && (
+                <p role="note" className="rounded-xl bg-warning-soft p-3 text-sm font-medium text-warning">
+                  {tutor.trialEnabled ? "This tutor isn't taking new paid lessons right now. You can still book a free trial lesson below." : "This tutor isn't accepting new students at the moment."}
+                </p>
+              )}
+              {(!paidUnavailable || tutor.trialEnabled) && (
+                <SlotPicker
+                  slug={slug} durations={tutor.durations} trial={{ enabled: tutor.trialEnabled, durationMin: tutor.trialDurationMin }}
+                  hourlyPriceCents={tutor.hourlyPriceCents} currency={tutor.currency} initialTrial={sp.trial === "1"} paidUnavailable={paidUnavailable}
+                  knownZone={session?.profile.timezone && session.profile.timezone !== "UTC" ? session.profile.timezone : undefined}
+                />
+              )}
             </Card>
           </section>
         </div>

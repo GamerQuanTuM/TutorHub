@@ -6,13 +6,16 @@ import Stripe from "stripe";
  */
 type Opts = { stripeAccount?: string; idempotencyKey?: string } | undefined;
 export const stripeCalls = {
-  refunds: [] as { params: { payment_intent?: string }; options: Opts }[],
+  refunds: [] as { params: { payment_intent?: string; amount?: number }; options: Opts }[],
   sessions: [] as { params: Record<string, unknown>; options: Opts }[],
   retrieves: [] as { id: string; options: Opts }[],
   accounts: [] as Record<string, unknown>[],
   links: [] as Record<string, unknown>[],
 };
+/** Set `refund` to a message to make refunds fail the way Stripe would (insufficient balance, charge too old, ...). */
+export const stripeFailures = { refund: null as string | null };
 export const resetStripeCalls = () => {
+  stripeFailures.refund = null;
   stripeCalls.refunds.length = 0;
   stripeCalls.sessions.length = 0;
   stripeCalls.retrieves.length = 0;
@@ -22,7 +25,8 @@ export const resetStripeCalls = () => {
 
 const stripe = new Stripe("sk_test_dummy_key_for_tests");
 Object.assign(stripe.refunds, {
-  create: async (params: { payment_intent?: string }, options?: Opts) => {
+  create: async (params: { payment_intent?: string; amount?: number }, options?: Opts) => {
+    if (stripeFailures.refund) throw new Error(stripeFailures.refund);
     stripeCalls.refunds.push({ params, options });
     return { id: `re_test_${stripeCalls.refunds.length}` };
   },

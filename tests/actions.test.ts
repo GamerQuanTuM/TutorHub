@@ -194,14 +194,17 @@ describe("students, invites, plans", () => {
     expect((await importStudentsCsvAction("name,email,credits\nBad,not-an-email,1")).error).toMatch(/Fix 1/);
   });
 
-  it("Free plan: no new invites or new students, existing students can still book", async () => {
+  it("Free plan: no new invites or new paid clients (a free trial is still allowed), existing students can still book", async () => {
     setCurrentUser(DEMO_TUTOR_ID);
     await repo.update("subscriptions", { tutorId: DEMO_TUTOR_ID }, { plan: "free" }); // the tutor already has 4 students
     expect((await inviteStudentAction({}, fd({ mode: "link", fullName: "One" }))).error).toMatch(/Free plan/);
 
     await repo.insert("profiles", { id: "brand-new", role: "student", fullName: "Brand New", email: "bn@test.dev", avatarUrl: null, timezone: "UTC" });
     setCurrentUser("brand-new");
-    expect((await bookLessonAction({}, fd({ slug: "ana-garcia", startsAt: await futureSlot(30), durationMin: "30", mode: "trial" }))).error).toMatch(/new students/i);
+    // a free trial is still bookable on a full tutor, but anything paid is not
+    const trialSlot = await futureSlot(30);
+    expect(await redirectOf(() => bookLessonAction({}, fd({ slug: "ana-garcia", startsAt: trialSlot, durationMin: "30", mode: "trial" })))).toContain("/book/confirmed");
+    expect((await bookLessonAction({}, fd({ slug: "ana-garcia", startsAt: await futureSlot(60, 4), durationMin: "60", mode: "card" }))).error).toMatch(/new students/i);
 
     setCurrentUser(LENA);
     const startsAt = await futureSlot(60, 3);

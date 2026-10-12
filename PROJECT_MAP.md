@@ -4,7 +4,7 @@
 > what has been redesigned, and what is left. **Update the checkboxes in the same change that finishes the work.**
 > Legend: `[x]` done and verified · `[~]` done but not fully verified · `[ ]` not done · `(!)` known problem.
 
-Last updated: 2026-10-06 (redesign in progress). Verification at last update: `tsc` clean, `eslint src tests` clean, **152/152 tests**.
+Last updated: 2026-10-12. Verification at last update: `npm run typecheck` clean, `npm run lint` clean, **215/215 tests**.
 
 ---
 
@@ -17,7 +17,7 @@ Last updated: 2026-10-06 (redesign in progress). Verification at last update: `t
 | Screens **looked at in a browser** (at least one width) | 20 | 36 | 16 never seen: see section 9, items P3-P4 |
 | Screens checked at **both 820px and 390px** | about 13 | 36 | The rest were checked at one width or by overflow measurement only |
 | Backend capabilities from the user's brief | 9 built + 2 dropped | 11 | Built: reviews, buffer, bell, CSV export, add-to-calendar links, saved chat, projected earnings + average hourly rate, demo login (off by default), in-app calendar (FullCalendar). Dropped by the user: two-way calendar sync, custom subdomain. See section 6 |
-| Automated tests | 152 passing | | Backend/logic only. There are **no automated UI or end-to-end tests** |
+| Automated tests | 215 passing | | Backend/logic only. There are **no automated UI or end-to-end tests** |
 | `tsc` / `eslint` | clean | | |
 
 Rough remaining effort, in order of value: (1) apply migrations 0005 and 0006 and check the new features in a browser, (2) verify the 16 unseen screens (needs a student login), (3) Stitch designs for the 28 screens that only got the shared restyle. No product decisions are pending.
@@ -185,7 +185,7 @@ Routes under `src/app/`. "Designed" = Stitch screen exists and was followed. "Re
 (profiles, tutor/student profiles, reviews, messages, tutor_students, availability rules/exceptions, bookings, packages, credits + ledger, payments, materials + assignments, lesson notes, assignments + submissions, subscriptions, notifications, stripe events).
 
 ### Tests
-`tests/*.test.ts` (152 passing at last run): actions, cancellation policy, Stripe Connect, credits, cron/config, CSV/reminders, double booking, timezone, webhook, **reviews + buffer, exports + calendar (incl. authorisation), notifications, analytics (projection, hourly rate), demo login, chat**.
+`tests/*.test.ts` (215 passing at last run): actions, cancellation policy, Stripe Connect, credits, cron/config, CSV/reminders, double booking, timezone, webhook, **reviews + buffer, exports + calendar (incl. authorisation), notifications, analytics (projection, hourly rate), demo login, chat**.
 
 ---
 
@@ -249,7 +249,7 @@ Severity: **High** = can mislead users or break something real, **Med** = known 
 | P5 | Closed | **All screens now follow a Stitch design** (batches 1-4), except `/setup-required` (developer-only). The booking-confirmed design never listed in Stitch; it was built from the prompt layout. | Small per-screen deviations remain where the mockup showed features without a backend (skipped on purpose). | Optional: design `/setup-required`. |
 | P6 | Med | **No mobile or tablet Stitch screens exist** (only desktop). Tablet/mobile layouts come from my responsive code. | The user asked for designs for all three form factors. | Generate `MOBILE`/`TABLET` variants per key screen in fresh Stitch projects and compare. |
 | P7 | Med | **Dark mode dominated testing.** The OS is dark; light mode was seen on only some pages (students, settings, tutor pages at 390). | Light-mode contrast problems may be undiscovered (peach/saffron badges, borders). | Toggle theme and sweep all pages. |
-| P8 | Med | **No automated UI/end-to-end tests** (Playwright etc.). 127 tests cover backend/logic only. | Visual/behavioural regressions are caught by eye only. | Add Playwright smoke tests for the key flows once a stable test login exists. |
+| P8 | Med | **No automated UI/end-to-end tests** (Playwright etc.). 215 tests cover backend/logic only. | Visual/behavioural regressions are caught by eye only. | Add Playwright smoke tests for the key flows once a stable test login exists. |
 | P9 | Low | **Accessibility was not formally audited** (keyboard order, screen reader, contrast ratios). Many components include roles/labels, but no axe/Lighthouse run. | Unknown WCAG gaps. | Run Lighthouse/axe on the main pages. |
 | P10 | Low | **Stitch API key was exposed in session output.** It is gitignored now and was never committed. | If the key leaks it can be used against the user's Stitch quota. | User rotates it in Stitch/Google settings. |
 | P11 | Low | **Closed:** the five items from the brief were built or dropped by decision (section 6). Two choices were the agent's: the definitions of *projected* and *average hourly rate*. | Numbers may not match what the user expects. | Confirm the definitions with the user. |
@@ -303,3 +303,26 @@ Demo login env (.env.local): DEMO_LOGIN_ENABLED=true plus DEMO_TUTOR_EMAIL/PASSW
 ## Video provider switch + VPS deployment bundle (2026-10-07)
 - **`VIDEO_PROVIDER=self-hosted|jaas|public`** (server env, `src/lib/video-provider.ts`; `src/lib/video.ts` still holds `embedUrl` for tutor intro videos). `self-hosted` uses `JITSI_DOMAIN` (+ optional HS256 token login `JITSI_JWT_APP_ID/SECRET/SUB`); `jaas` uses `JAAS_APP_ID/KEY_ID/PRIVATE_KEY` and signs an RS256 token per person (tutor = moderator); `public` = meet.jit.si (demo, 5-minute cut). Unset: custom `JITSI_DOMAIN`/`NEXT_PUBLIC_JITSI_DOMAIN` means self-hosted, else public. The lesson page builds the config server-side and passes `video` to `LessonRoom` -> `JitsiFrame` (shows a clear message if the chosen provider is not configured). Tests: `tests/video-provider.test.ts` (13).
 - **`deploy/`**: docker-compose (caddy, app, cron + profile `supabase`: db, kong, auth, rest, realtime, storage + profile `jitsi`: prosody, jicofo, jvb, jitsi-web), `.env.example`, `scripts/` (setup, deploy, migrate, doctor, backup, update, jaas-key, lib), root `Dockerfile` (+ `.dockerignore`, `next.config.ts` standalone output via NEXT_OUTPUT). Guide: `docs/vps-setup-guide.md` (the old `deploy/README.md` was merged into it and removed). Root `docker-compose.yml` + `npm run docker:up|down|logs` run just the app locally from `.env.local`. Needs TWO Stripe webhook secrets (`STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`); both are passed through and documented. Mistake made and fixed while building this: `src/lib/video.ts` (embedUrl) was overwritten and rebuilt from the Turbopack build output; provider code lives in `video-provider.ts`.
+
+
+## Free-plan seats, archiving and credit refunds (2026-10-12)
+Checklist (all done, tests in `tests/student-archive.test.ts`, `tests/credit-refunds.test.ts`, `tests/free-plan-trial.test.ts`; key tests mutation-checked):
+- [x] **Archive guard** (`setStudentStatusAction`, `src/lib/student-archive.ts`): archiving is refused while the student has unused credits or upcoming lessons (confirmed or pending_payment, in the future); the message names which one (or both). Past and cancelled lessons never block. Restoring keeps its Free-plan room check.
+- [x] **Refund of unused paid credits** (`refundUnusedCredits`, `creditRefundPreview`, `removeFreeCredits` in `src/lib/payments/fulfill.ts`): partial Stripe refunds on the tutor's connected account, newest payment first, each credit priced at package price / lessons, idempotency key `refund-credits-<paymentId>-<refundedBefore>-<cents>`. The DB is updated BEFORE Stripe is called and put back if Stripe refuses, so the `charge.refunded` webhook (`recordExternalRefund`) finds it already recorded; the webhook now ignores events whose running total is not above what is recorded, and a later dashboard refund removes only the credits not already refunded.
+- [x] **Tutor UI** on `/tutor/students/[id]`: "Before you can archive <name>" card with Refund unused credits (confirm text with the amount), Remove free credits, Cancel upcoming lessons. Server actions `refundUnusedCreditsAction`, `removeFreeCreditsAction`, `cancelUpcomingLessonsAction` (tutor only, own student only, rate limited).
+- [x] **Free trial on a full tutor**: `ensureStudentLink(..., { trial: true })` skips the cap (archived students are still refused). Public page `/t/[slug]`: a full tutor shows a note, keeps the trial selectable and offers no paid slots (`SlotPicker paidUnavailable`).
+- [x] **One seat rule** (`takesSeat` / `studentSeats` / `studentHoldsSeat` in `src/lib/data/queries.ts`), used by invites, restoring a student, booking, the public page and the billing page (replaces the old `countActiveStudents`): a pending invite takes a seat; an active student takes one if invited by the tutor, or holds credits, or has a non-cancelled lesson that is not a free trial; trial-only students and archived students take none. Existing seat holders are never locked out.
+- [x] `netCents` (earnings) now subtracts `refundedCents` for partial refunds (status stays "paid"); credit reasons are constants in `src/lib/credit-reasons.ts`.
+
+Decisions and limits to know about:
+- **Paid vs free credits** is not stored per credit. Rule used: free credits (welcome, "Added by tutor", minus "Free credits removed by tutor") are assumed unused and used lessons are assumed to have come from paid credits, so a refund never covers more than was certainly paid for. A different mix of used credits can leave a student with paid credits that this rule treats as free (the tutor can still adjust by hand).
+- With several payments, a Stripe failure on a later one leaves the earlier refunds in place; the error says how many credits were refunded before it.
+- A Stripe refusal (balance too low, payment too old, no connected account) changes nothing and is shown to the tutor.
+- Cancelling a lesson that was paid with a credit returns the credit (unchanged behaviour), so it can re-block archiving until refunded or removed.
+- Giving credits ("Add credits") does not check the Free-plan cap (unchanged), but the student then takes a seat. Two new paid students racing for the last seat can both get in (check-then-insert, unchanged).
+- The full-tutor note on the public page is covered by logic tests but was not seen in a browser (the demo tutor is on Pro). The archive card and refusal message were checked in a browser as the demo tutor.
+
+### Verified in a browser and against Stripe TEST mode (2026-10-12)
+- [x] Full Free-plan tutor (Nora: 1 client + 2 pending invites): public page `/t/[slug]` shows "This tutor isn't taking new paid lessons right now. You can still book a free trial lesson below.", the trial is pre-selected and the paid lengths are disabled.
+- [x] Real refund: a real test-mode charge (EUR 50, "5 lessons", on Nora's connected account) was refunded from the student page as the tutor. The page offered "Refund 1 unused credit (EUR 10)", the confirmation read "Refund EUR 10 to Noah's card? It comes out of your Stripe balance.", Stripe shows ONE refund of EUR 10 (succeeded) on the connected account and `amount_refunded` 10 (charge not fully refunded), the DB shows `refunded_cents` 1000 with status "paid", the credit balance dropped by exactly 1 and the 2 free credits were untouched. A signed `charge.refunded` event posted to `/api/webhooks/stripe` changed nothing, and replaying the same event id returned `duplicate: true`.
+- Finding: the paid-vs-free rule (see above) can under-refund. Example seen: 2 free welcome credits (1 used on a lesson), then 5 paid credits, 4 used: the rule treats all used lessons as paid, so it shows 0 refundable although in reality 1-2 paid credits remain. A FIFO rule over the credit ledger (oldest credits used first) would be more accurate; not built (not asked). Test data was removed afterwards (the Stripe test charge and refund stay in Stripe's test mode).

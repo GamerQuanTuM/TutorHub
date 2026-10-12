@@ -6,7 +6,12 @@ import { redirect } from "next/navigation";
 import { requireSession, getSession } from "@/lib/auth/session";
 import { getAdminRepo, getRepo } from "@/lib/data";
 import type { Repo } from "@/lib/data";
-import { getTutorPlan } from "@/lib/data/queries";
+import { getTutorPlan, studentSeats } from "@/lib/data/queries";
+import { CREDIT_REASON } from "@/lib/credit-reasons";
+import { archiveBlockMessage, archiveBlockers } from "@/lib/student-archive";
+import { cancelBooking } from "@/lib/booking/service";
+import { refundUnusedCredits, removeFreeCredits } from "@/lib/payments/fulfill";
+import { formatMoney } from "@/lib/time";
 import { canAddStudent, PLAN_LIMITS } from "@/lib/plans";
 import { inviteSchema } from "@/lib/validation/schemas";
 import { parseStudentCsv } from "@/lib/csv";
@@ -19,10 +24,10 @@ import type { TutorStudent } from "@/lib/types";
 
 const newToken = () => randomBytes(18).toString("base64url"); // 144 bits: unguessable
 
-/** Free plan: active students + pending invites may not exceed the limit. */
+/** Free plan: the seats in use (see studentSeats: clients plus pending invites, not trial-only students) may not exceed the limit. */
 async function roomForInvites(repo: Repo, tutorId: string, wanted: number): Promise<string | null> {
   const { plan } = await getTutorPlan(repo, tutorId);
-  const used = (await repo.select("tutor_students", { tutorId })).filter((l) => l.status !== "archived").length;
+  const used = (await studentSeats(repo, tutorId)).used;
   if (canAddStudent(plan, used + wanted - 1)) return null;
   return `The Free plan includes up to ${PLAN_LIMITS.free.maxStudents} students (${used} used). Upgrade to Pro for unlimited students.`;
 }
@@ -119,7 +124,7 @@ export async function acceptInviteAction(fd: FormData) {
   }
   await repo.update("tutor_students", { id: link.id }, { studentId: session.id, status: "active", inviteToken: null });
   if (link.invitedCredits > 0) {
-    await repo.adjustCredit({ tutorId: link.tutorId, studentId: session.id, delta: link.invitedCredits, reason: "Welcome credits from your tutor" });
+    await repo.adjustCredit({ tutorId: link.tutorId, studentId: session.id, delta: link.invitedCredits, reason: CREDIT_REASON.welcome });
   }
   redirect("/student/dashboard?joined=1");
 }
@@ -130,7 +135,7 @@ export async function grantCreditsAction(studentId: string, amount: number): Pro
   if (!Number.isInteger(amount) || amount < 1 || amount > 100) return { error: "Enter a whole number between 1 and 100." };
   const repo = getAdminRepo();
   if (!(await repo.one("tutor_students", { tutorId: session.id, studentId }))) return { error: "Student not found." };
-  const res = await repo.adjustCredit({ tutorId: session.id, studentId, delta: amount, reason: "Added by tutor" });
+  const res = await repo.adjustCredit({ tutorId: session.id, studentId, delta: amount, reason: CREDIT_REASON.addedByTutor });
   revalidatePath(`/tutor/students/${studentId}`);
   return res.ok ? { ok: true, balance: res.balance, message: `Added ${amount} credit${amount === 1 ? "" : "s"}.` } : { error: "Couldn't add credits." };
 }
@@ -141,9 +146,70 @@ export async function setStudentStatusAction(studentId: string, status: "active"
   if (status === "active") {
     const limit = await roomForInvites(repo, session.id, 1);
     if (limit) return { error: limit };
+  } else {
+    // An archived student cannot book again: refuse while they still have unused credits or lessons coming up
+    const blockers = await archiveBlockers(repo, session.id, studentId, new Date().toISOString());
+    const name = (await repo.one("profiles", { id: studentId }))?.fullName.split(" ")[0] ?? "This student";
+    const message = archiveBlockMessage(name, blockers);
+    if (message) return { error: message };
   }
   await repo.update("tutor_students", { tutorId: session.id, studentId }, { status });
   revalidatePath("/tutor/students");
   revalidatePath(`/tutor/students/${studentId}`);
   return { ok: true };
+}
+
+/** Shared by the three actions below: tutor only, rate limited, and only for one of this tutor's own students. */
+async function ownStudentGuard(kind: string, studentId: string): Promise<{ tutorId: string } | { error: string }> {
+  const session = await requireSession("tutor");
+  const rl = rateLimit(`${kind}:${session.id}:${clientIp(await headers())}`, 10, 10 * 60_000);
+  if (!rl.ok) return { error: "Too many attempts. Please wait a few minutes." };
+  if (!(await (await getRepo()).one("tutor_students", { tutorId: session.id, studentId }))) return { error: "Student not found." };
+  return { tutorId: session.id };
+}
+
+const refreshStudent = (studentId: string) => {
+  revalidatePath("/tutor/students");
+  revalidatePath(`/tutor/students/${studentId}`);
+  revalidatePath("/tutor", "layout");
+  revalidatePath("/student", "layout");
+};
+
+/** Refund the student's unused PAID credits to their card (partial refunds on the tutor's own Stripe account). */
+export async function refundUnusedCreditsAction(studentId: string): Promise<ActionState> {
+  const guard = await ownStudentGuard("refund-credits", studentId);
+  if ("error" in guard) return guard;
+  const res = await refundUnusedCredits(getAdminRepo(), guard.tutorId, studentId);
+  refreshStudent(studentId);
+  if (!res.ok) return { error: res.cents > 0 ? `${res.error} (${res.credits} credit${res.credits === 1 ? "" : "s"} were refunded before this problem.)` : res.error };
+  return { ok: true, message: `Refunded ${formatMoney(res.cents, res.currency)} for ${res.credits} credit${res.credits === 1 ? "" : "s"}.` };
+}
+
+/** Remove credits the tutor gave away for free. There is no payment behind them, so nothing is refunded. */
+export async function removeFreeCreditsAction(studentId: string): Promise<ActionState> {
+  const guard = await ownStudentGuard("remove-free-credits", studentId);
+  if ("error" in guard) return guard;
+  const { removed } = await removeFreeCredits(getAdminRepo(), guard.tutorId, studentId);
+  refreshStudent(studentId);
+  return removed > 0 ? { ok: true, message: `Removed ${removed} free credit${removed === 1 ? "" : "s"}.` } : { error: "There are no free credits to remove." };
+}
+
+/** Cancel every upcoming lesson with this student, through the normal cancellation path (refunds and emails included). */
+export async function cancelUpcomingLessonsAction(studentId: string): Promise<ActionState> {
+  const guard = await ownStudentGuard("cancel-upcoming", studentId);
+  if ("error" in guard) return guard;
+  const admin = getAdminRepo();
+  const now = new Date().toISOString();
+  const { upcoming } = await archiveBlockers(admin, guard.tutorId, studentId, now);
+  if (upcoming.length === 0) return { error: "There are no upcoming lessons to cancel." };
+  let cancelled = 0;
+  let firstError = "";
+  for (const b of upcoming) {
+    const res = await cancelBooking(admin, { bookingId: b.id, actorId: guard.tutorId, role: "tutor", now });
+    if (res.ok) cancelled++;
+    else firstError ||= res.error;
+  }
+  refreshStudent(studentId);
+  if (cancelled === upcoming.length) return { ok: true, message: `Cancelled ${cancelled} lesson${cancelled === 1 ? "" : "s"}. Refunds and emails are on their way.` };
+  return { error: `Cancelled ${cancelled} of ${upcoming.length} lessons. ${firstError}` };
 }

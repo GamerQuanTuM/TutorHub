@@ -5,7 +5,8 @@ import type { Booking, Payment, Role, TutorProfile } from "@/lib/types";
 import { slotStillAvailable } from "@/lib/scheduling/native-provider";
 import { evaluateCancellation, evaluateReschedule } from "@/lib/scheduling/cancellation-policy";
 import { canAddStudent } from "@/lib/plans";
-import { getTutorPlan, countActiveStudents } from "@/lib/data/queries";
+import { CREDIT_REASON } from "@/lib/credit-reasons";
+import { getTutorPlan, studentHoldsSeat, studentSeats } from "@/lib/data/queries";
 import { failPayment, refundPayment } from "@/lib/payments/fulfill";
 import { notifyBookingCancelled, notifyBookingConfirmed, notifyBookingRescheduled } from "@/lib/email/notify";
 
@@ -21,15 +22,28 @@ export type BookingOutcome =
   | { ok: true; booking: Booking; payment: Payment | null }
   | { ok: false; error: string; code: "slot_taken" | "not_allowed" | "no_credits" | "trial_unavailable" | "tutor_full" | "invalid" };
 
-/** Make sure a student↔tutor relationship exists (creating it, subject to the Free-plan student limit). */
-export async function ensureStudentLink(repo: Repo, tutorId: string, studentId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+const TUTOR_FULL = "This tutor isn't accepting new students at the moment. Please contact them directly.";
+
+/**
+ * Make sure a student↔tutor relationship exists, subject to the Free-plan student limit (see takesSeat in data/queries).
+ *  - archived students are always refused,
+ *  - a free trial NEVER needs a seat: a full tutor can still be tried once, and a trial-only student takes no seat,
+ *  - anything paid (card, credit, package) needs a seat unless the student already has one. Students who already hold a
+ *    seat are never locked out (for example after a plan downgrade).
+ */
+export async function ensureStudentLink(
+  repo: Repo, tutorId: string, studentId: string, opts: { trial?: boolean } = {},
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const link = await repo.one("tutor_students", { tutorId, studentId });
   if (link?.status === "archived") return { ok: false, error: "This tutor is not taking bookings from you right now." };
-  if (link) return { ok: true };
-  const { plan } = await getTutorPlan(repo, tutorId);
-  if (!canAddStudent(plan, await countActiveStudents(repo, tutorId))) {
-    return { ok: false, error: "This tutor isn't accepting new students at the moment. Please contact them directly." };
+
+  if (!opts.trial) {
+    if (!(await studentHoldsSeat(repo, tutorId, studentId))) {
+      const { plan } = await getTutorPlan(repo, tutorId);
+      if (!canAddStudent(plan, (await studentSeats(repo, tutorId, { excludeStudentId: studentId })).used)) return { ok: false, error: TUTOR_FULL };
+    }
   }
+  if (link) return { ok: true };
   await repo.insert("tutor_students", {
     tutorId, studentId, status: "active", privateNotes: "", inviteToken: null, invitedEmail: null, invitedName: null, invitedCredits: 0,
   });
@@ -68,8 +82,8 @@ export async function createBooking(
     return { ok: false, code: "slot_taken", error: "Sorry, that time was just taken. Please pick another slot." };
   }
 
-  // 5. Relationship (and Free-plan student limit)
-  const link = await ensureStudentLink(repo, a.tutorId, a.studentId);
+  // 5. Relationship (and Free-plan student limit; a free trial is allowed even when the tutor is full)
+  const link = await ensureStudentLink(repo, a.tutorId, a.studentId, { trial: a.mode === "trial" });
   if (!link.ok) return { ok: false, code: "tutor_full", error: link.error };
 
   // 6. Insert atomically: the repo refuses overlapping bookings (DB exclusion constraint / locked check)
@@ -92,7 +106,7 @@ export async function createBooking(
 
   // 7. Pay: deduct a credit (atomic, can fail if the balance changed), or create the pending card payment
   if (a.mode === "credit") {
-    const res = await repo.adjustCredit({ tutorId: a.tutorId, studentId: a.studentId, delta: -1, reason: "Lesson booked", bookingId: booking.id });
+    const res = await repo.adjustCredit({ tutorId: a.tutorId, studentId: a.studentId, delta: -1, reason: CREDIT_REASON.booked, bookingId: booking.id });
     if (!res.ok) {
       await repo.update("bookings", { id: booking.id }, { status: "cancelled", cancelledAt: a.now });
       return { ok: false, code: "no_credits", error: "You have no lesson credits left with this tutor." };
@@ -131,7 +145,7 @@ export async function cancelBooking(repo: Repo, a: { bookingId: string; actorId:
     if (booking.status === "pending_payment" && booking.paymentId) {
       await failPayment(repo, booking.paymentId);
     } else if (decision.refund && booking.paidWith === "credit") {
-      await repo.adjustCredit({ tutorId: booking.tutorId, studentId: booking.studentId, delta: 1, reason: "Lesson cancelled: credit returned", bookingId: booking.id });
+      await repo.adjustCredit({ tutorId: booking.tutorId, studentId: booking.studentId, delta: 1, reason: CREDIT_REASON.returned, bookingId: booking.id });
       note = "Your lesson credit has been returned.";
     } else if (decision.refund && booking.paidWith === "card" && booking.paymentId) {
       const r = await refundPayment(repo, booking.paymentId);

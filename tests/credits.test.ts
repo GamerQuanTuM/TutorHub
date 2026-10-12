@@ -97,7 +97,11 @@ describe("trial lessons and plan limits", () => {
   it("Free plan caps students at 3", async () => {
     const { repo } = await setup();
     await repo.update("subscriptions", { tutorId: "t1" }, { plan: "free" });
-    for (const id of ["a", "b", "c"]) expect((await ensureStudentLink(repo, "t1", id)).ok).toBe(true);
+    // a seat is taken by a real client (here: someone holding credits); see takesSeat in data/queries
+    for (const id of ["a", "b", "c"]) {
+      expect((await ensureStudentLink(repo, "t1", id)).ok).toBe(true);
+      await repo.adjustCredit({ tutorId: "t1", studentId: id, delta: 1, reason: "Added by tutor" });
+    }
     expect((await ensureStudentLink(repo, "t1", "d")).ok).toBe(false);
     expect((await ensureStudentLink(repo, "t1", "a")).ok).toBe(true); // existing students are unaffected
   });

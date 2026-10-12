@@ -4,8 +4,7 @@ import { toCsv } from "@/lib/csv";
 
 /** Money the tutor actually kept from a payment (refunds subtracted). Pending/failed count as 0. */
 export function netCents(p: Payment): number {
-  if (p.status === "paid") return p.amountCents;
-  if (p.status === "refunded") return Math.max(0, p.amountCents - p.refundedCents);
+  if (p.status === "paid" || p.status === "refunded") return Math.max(0, p.amountCents - p.refundedCents); // a partial refund leaves the status "paid"
   return 0;
 }
 

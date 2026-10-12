@@ -6,11 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AutoSaveField } from "@/components/shared/autosave-field";
-import { GrantCredits, ArchiveButton } from "@/components/students/student-actions";
+import { GrantCredits, ArchiveButton, CancelUpcomingButton, RefundCreditsButton, RemoveFreeCreditsButton } from "@/components/students/student-actions";
 import { requireSession } from "@/lib/auth/session";
-import { getRepo } from "@/lib/data";
+import { getAdminRepo, getRepo } from "@/lib/data";
+import { archiveBlockers } from "@/lib/student-archive";
+import { creditRefundPreview } from "@/lib/payments/fulfill";
 import { effectiveStatus } from "@/lib/data/queries";
-import { formatDate, formatDateTime, formatTime, inZone, nowMs } from "@/lib/time";
+import { formatDate, formatDateTime, formatMoney, formatTime, inZone, nowMs } from "@/lib/time";
 import { savePrivateStudentNotesAction } from "@/lib/actions/lessons";
 
 export const metadata = { title: "Student · TutorHub" };
@@ -36,6 +38,11 @@ export default async function StudentProfilePage({ params }: PageProps<"/tutor/s
   const myHomework = assignments.filter((a) => a.studentId === null || a.studentId === id);
   const noteFor = (bookingId: string) => notes.find((n) => n.bookingId === bookingId && n.authorId === session.id);
 
+  // Why archiving would be refused (unused credits, lessons coming up) and what the tutor can do about it.
+  // Ownership was already checked above (the link), so the wider reads here use the admin client.
+  const blockers = link.status === "active" ? await archiveBlockers(getAdminRepo(), session.id, id, new Date(now).toISOString()) : null;
+  const refund = blockers && blockers.credits > 0 ? await creditRefundPreview(getAdminRepo(), session.id, id) : null;
+  const firstName = profile.fullName.split(" ")[0] ?? profile.fullName;
   const completed = history.filter((b) => effectiveStatus(b, now) === "completed").length;
   const graded = myHomework.filter((a) => submissions.some((x) => x.assignmentId === a.id && x.gradedAt)).length;
   const submittedCount = myHomework.filter((a) => submissions.some((x) => x.assignmentId === a.id)).length;
@@ -83,6 +90,28 @@ export default async function StudentProfilePage({ params }: PageProps<"/tutor/s
           </div>
         </div>
       </Card>
+
+      {blockers && (blockers.credits > 0 || blockers.upcoming.length > 0) && (
+        <Card className="space-y-3 border-warning/40 bg-warning-soft/40">
+          <h2 className="text-lg font-extrabold">Before you can archive {firstName}</h2>
+          <ul className="space-y-1 text-sm">
+            {blockers.credits > 0 && refund && (
+              <li>
+                <strong>{blockers.credits} unused credit{blockers.credits === 1 ? "" : "s"}</strong>
+                {refund.refundCredits > 0 && <> · {refund.refundCredits} paid by card (<span className="mono">{formatMoney(refund.totalCents, refund.currency)}</span> can be refunded)</>}
+                {refund.freeCredits > 0 && <> · {refund.freeCredits} given free (nothing to refund)</>}
+                {refund.refundCredits === 0 && refund.freeCredits === 0 && <> · these can&apos;t be refunded automatically; let {firstName} use {blockers.credits === 1 ? "it" : "them"}</>}
+              </li>
+            )}
+            {blockers.upcoming.length > 0 && <li><strong>{blockers.upcoming.length} upcoming lesson{blockers.upcoming.length === 1 ? "" : "s"}</strong></li>}
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            {refund && refund.refundCredits > 0 && <RefundCreditsButton studentId={id} studentName={firstName} credits={refund.refundCredits} amountLabel={formatMoney(refund.totalCents, refund.currency)} />}
+            {refund && refund.freeCredits > 0 && <RemoveFreeCreditsButton studentId={id} count={refund.freeCredits} />}
+            {blockers.upcoming.length > 0 && <CancelUpcomingButton studentId={id} count={blockers.upcoming.length} />}
+          </div>
+        </Card>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-3">
         {stat("Lessons taken", completed, history.length === 0 ? "No lessons yet" : `${history.length} booked in total`, Video, "bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-200")}

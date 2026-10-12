@@ -34,9 +34,52 @@ export async function listTutorStudents(repo: Repo, tutorId: string): Promise<St
   return rows.sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
-export async function countActiveStudents(repo: Repo, tutorId: string): Promise<number> {
-  const links = await repo.select("tutor_students", { tutorId });
-  return links.filter((l) => l.status === "active").length;
+/**
+ * Free-plan seats. ONE definition, used by invites, restoring a student, booking, the public page and the billing page,
+ * so they can never disagree:
+ *
+ *  - a pending invite takes a seat (it is a promise of a place),
+ *  - an active student takes a seat once they are a real client: they were invited by the tutor, or they hold lesson
+ *    credits, or they have at least one lesson that is not a free trial (confirmed, completed, or waiting for payment),
+ *  - an active student who has only used a free trial takes NO seat, so trials cannot fill the tutor up,
+ *  - archived students take no seat.
+ */
+export function takesSeat(
+  link: TutorStudent,
+  data: { bookings: Pick<Booking, "studentId" | "isTrial" | "status">[]; credits: { studentId: string; balance: number }[] },
+): boolean {
+  if (link.status === "invited") return true;
+  if (link.status !== "active" || !link.studentId) return false;
+  if (link.invitedName !== null || link.invitedEmail !== null) return true; // came through an invite
+  if ((data.credits.find((c) => c.studentId === link.studentId)?.balance ?? 0) > 0) return true;
+  return data.bookings.some((b) => b.studentId === link.studentId && !b.isTrial && b.status !== "cancelled");
+}
+
+/** Does this student already hold one of the tutor's seats? (Such students are never locked out by the Free-plan limit.) */
+export async function studentHoldsSeat(repo: Repo, tutorId: string, studentId: string): Promise<boolean> {
+  const link = await repo.one("tutor_students", { tutorId, studentId });
+  if (!link) return false;
+  const [bookings, credits] = await Promise.all([repo.select("bookings", { tutorId, studentId }), repo.select("student_credits", { tutorId, studentId })]);
+  return takesSeat(link, { bookings, credits });
+}
+
+export interface StudentSeats { active: number; invited: number; used: number }
+
+export async function studentSeats(repo: Repo, tutorId: string, opts: { excludeStudentId?: string } = {}): Promise<StudentSeats> {
+  const [links, bookings, credits] = await Promise.all([
+    repo.select("tutor_students", { tutorId }),
+    repo.select("bookings", { tutorId }),
+    repo.select("student_credits", { tutorId }),
+  ]);
+  let active = 0;
+  let invited = 0;
+  for (const link of links) {
+    if (opts.excludeStudentId && link.studentId === opts.excludeStudentId) continue;
+    if (!takesSeat(link, { bookings, credits })) continue;
+    if (link.status === "invited") invited++;
+    else active++;
+  }
+  return { active, invited, used: active + invited };
 }
 
 export interface BookingView extends Booking {
